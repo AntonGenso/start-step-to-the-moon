@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Step to the Moon — Intro</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    background: #000;
+    overflow: hidden;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+  .stage {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center, #0a0e1f 0%, #02040a 60%, #000 100%);
+    overflow: hidden;
+  }
+  canvas#stars {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .logo {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.05);
+    opacity: 0;
+    will-change: transform, opacity, filter;
+    filter: blur(20px);
+  }
+  .logo img {
+    display: block;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+  #logo-21 img {
+    height: 180px;
+    width: auto;
+  }
+  #logo-uz img {
+    height: 140px;
+    width: auto;
+  }
+  #scene-a4 {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transform: scale(1.08);
+    will-change: opacity, transform;
+    pointer-events: none;
+  }
+  #scene-a4 img {
+    max-width: 92%;
+    max-height: 92%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    user-select: none;
+    -webkit-user-drag: none;
+    border-radius: 8px;
+  }
+  .skip {
+    position: absolute;
+    top: 24px;
+    right: 24px;
+    z-index: 100;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.18);
+    color: rgba(255,255,255,0.7);
+    padding: 8px 18px;
+    border-radius: 22px;
+    font-size: 12px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .skip:hover {
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+  }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <canvas id="stars"></canvas>
+
+  <div class="logo" id="logo-21">
+    <img src="White_4x.png" alt="School 21">
+  </div>
+
+  <div class="logo" id="logo-uz">
+    <img src="uzcosmos_logo_white.png" alt="UZCOSMOS">
+  </div>
+
+  <div id="scene-a4">
+    <img src="A4.png" alt="Step to the Moon">
+  </div>
+
+  <button class="skip" id="skip">SKIP →</button>
+</div>
+
+<script>
+// ============ STARFIELD ============
+const canvas = document.getElementById('stars');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+  canvas.width = window.innerWidth * window.devicePixelRatio;
+  canvas.height = window.innerHeight * window.devicePixelRatio;
+  canvas.style.width = window.innerWidth + 'px';
+  canvas.style.height = window.innerHeight + 'px';
+}
+resize();
+window.addEventListener('resize', resize);
+
+const stars = [];
+const STAR_COUNT = 400;
+
+function initStars() {
+  stars.length = 0;
+  for (let i = 0; i < STAR_COUNT; i++) {
+    stars.push({
+      x: (Math.random() - 0.5) * canvas.width * 2,
+      y: (Math.random() - 0.5) * canvas.height * 2,
+      z: Math.random() * canvas.width,
+      pz: 0,
+      size: Math.random() * 1.5 + 0.3
+    });
+  }
+}
+initStars();
+
+// speed: starts high (warp from deep space), slows to gentle drift
+let warpSpeed = 25;
+
+function drawStars() {
+  ctx.fillStyle = 'rgba(2, 4, 10, 0.35)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+
+  for (const s of stars) {
+    s.pz = s.z;
+    s.z -= warpSpeed;
+
+    if (s.z < 1) {
+      s.x = (Math.random() - 0.5) * canvas.width * 2;
+      s.y = (Math.random() - 0.5) * canvas.height * 2;
+      s.z = canvas.width;
+      s.pz = s.z;
+    }
+
+    const sx = (s.x / s.z) * cx + cx;
+    const sy = (s.y / s.z) * cy + cy;
+    const psx = (s.x / s.pz) * cx + cx;
+    const psy = (s.y / s.pz) * cy + cy;
+
+    const r = (1 - s.z / canvas.width) * s.size * window.devicePixelRatio * 1.8;
+    const alpha = Math.min(1, (1 - s.z / canvas.width) * 1.2);
+
+    // streak (gives warp effect)
+    if (warpSpeed > 3) {
+      ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.7})`;
+      ctx.lineWidth = r * 0.6;
+      ctx.beginPath();
+      ctx.moveTo(psx, psy);
+      ctx.lineTo(sx, sy);
+      ctx.stroke();
+    }
+
+    // star
+    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+    ctx.beginPath();
+    ctx.arc(sx, sy, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  requestAnimationFrame(drawStars);
+}
+drawStars();
+
+// ============ LOGO ANIMATION ============
+const logo21 = document.getElementById('logo-21');
+const logoUz = document.getElementById('logo-uz');
+const sceneA4 = document.getElementById('scene-a4');
+
+// CSS transitions for the entire animation
+const APPEAR_EASE = 'cubic-bezier(0.16, 1, 0.3, 1)'; // smooth ease-out
+const EXIT_EASE = 'cubic-bezier(0.7, 0, 0.84, 0)';   // accelerating
+
+function showLogo21() {
+  // appears from deep space: tiny + blurred → full size + sharp
+  logo21.style.transition = `transform 1800ms ${APPEAR_EASE}, opacity 1400ms ease-out, filter 1400ms ease-out`;
+  logo21.style.transform = 'translate(-50%, -50%) scale(1)';
+  logo21.style.opacity = '1';
+  logo21.style.filter = 'blur(0px)';
+}
+
+function hideLogo21() {
+  // flies forward (zoom past camera) + fades
+  logo21.style.transition = `transform 900ms ${EXIT_EASE}, opacity 700ms ease-in, filter 700ms ease-in`;
+  logo21.style.transform = 'translate(-50%, -50%) scale(3.5)';
+  logo21.style.opacity = '0';
+  logo21.style.filter = 'blur(8px)';
+}
+
+function showLogoUz() {
+  logoUz.style.transition = `transform 1800ms ${APPEAR_EASE}, opacity 1400ms ease-out, filter 1400ms ease-out`;
+  logoUz.style.transform = 'translate(-50%, -50%) scale(1)';
+  logoUz.style.opacity = '1';
+  logoUz.style.filter = 'blur(0px)';
+}
+
+function hideLogoUz() {
+  logoUz.style.transition = `transform 900ms ${EXIT_EASE}, opacity 700ms ease-in, filter 700ms ease-in`;
+  logoUz.style.transform = 'translate(-50%, -50%) scale(3.5)';
+  logoUz.style.opacity = '0';
+  logoUz.style.filter = 'blur(8px)';
+}
+
+function showSceneA4() {
+  // smooth fade-in with subtle zoom-out — feels like the camera settles on the artwork
+  sceneA4.style.transition = `opacity 1800ms ease-out, transform 2400ms cubic-bezier(0.16, 1, 0.3, 1)`;
+  sceneA4.style.opacity = '1';
+  sceneA4.style.transform = 'scale(1)';
+}
+
+function tween(from, to, duration, onUpdate) {
+  const start = performance.now();
+  return new Promise(resolve => {
+    function step(now) {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      onUpdate(from + (to - from) * eased);
+      if (t < 1) requestAnimationFrame(step);
+      else resolve();
+    }
+    requestAnimationFrame(step);
+  });
+}
+
+function wait(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+let cancelled = false;
+
+async function runIntro() {
+  // 0.0 — 0.2s: pause at warp speed (build anticipation)
+  await wait(200);
+  if (cancelled) return;
+
+  // 0.2 — 2.0s: logo 21 emerges from deep space
+  showLogo21();
+  // gradually slow the warp as logo arrives
+  tween(25, 4, 1600, v => warpSpeed = v);
+  await wait(1800);
+  if (cancelled) return;
+
+  // 2.0 — 2.8s: hold logo 21 in focus
+  await wait(800);
+  if (cancelled) return;
+
+  // 2.8 — 3.7s: logo 21 flies past camera
+  hideLogo21();
+  // brief warp surge as we "fly past"
+  tween(4, 12, 400, v => warpSpeed = v);
+  await wait(500);
+  if (cancelled) return;
+
+  // 3.3 — 5.1s: UZCOSMOS emerges
+  showLogoUz();
+  tween(12, 4, 1600, v => warpSpeed = v);
+  await wait(1800);
+  if (cancelled) return;
+
+  // 5.1 — 5.9s: hold UZCOSMOS
+  await wait(800);
+  if (cancelled) return;
+
+  // 5.9 — 7.1s: UZCOSMOS softly fades out (no aggressive zoom-past — we want a calm transition)
+  logoUz.style.transition = `opacity 1200ms ease-in-out, filter 1200ms ease-in-out, transform 1200ms ease-in-out`;
+  logoUz.style.opacity = '0';
+  logoUz.style.filter = 'blur(12px)';
+  logoUz.style.transform = 'translate(-50%, -50%) scale(1.15)';
+
+  // calm the starfield down — the scene is about to settle on the artwork
+  tween(4, 0.8, 1400, v => warpSpeed = v);
+  await wait(900);
+  if (cancelled) return;
+
+  // 6.8s onward: A4 image fades in smoothly (overlaps slightly with UZCOSMOS fade for seamless feel)
+  showSceneA4();
+  await wait(2000);
+  if (cancelled) return;
+
+  // gentle drift continues underneath the artwork
+  tween(warpSpeed, 0.4, 1500, v => warpSpeed = v);
+}
+
+// SKIP button — jump straight to the A4 artwork
+document.getElementById('skip').addEventListener('click', () => {
+  cancelled = true;
+  logo21.style.transition = 'opacity 200ms ease-out';
+  logoUz.style.transition = 'opacity 200ms ease-out';
+  logo21.style.opacity = '0';
+  logoUz.style.opacity = '0';
+  tween(warpSpeed, 0.4, 600, v => warpSpeed = v);
+  setTimeout(() => {
+    showSceneA4();
+  }, 250);
+  window.dispatchEvent(new CustomEvent('intro:skipped'));
+});
+
+// start when all images are loaded (logos + A4)
+const images = document.querySelectorAll('img');
+let loadedCount = 0;
+const totalImages = images.length;
+images.forEach(img => {
+  if (img.complete) {
+    loadedCount++;
+    if (loadedCount === totalImages) runIntro();
+  } else {
+    img.addEventListener('load', () => {
+      loadedCount++;
+      if (loadedCount === totalImages) runIntro();
+    });
+    img.addEventListener('error', () => {
+      loadedCount++;
+      if (loadedCount === totalImages) runIntro();
+    });
+  }
+});
+
+// fire completion event after the full sequence (~9s — when A4 has fully appeared)
+setTimeout(() => {
+  if (!cancelled) {
+    window.dispatchEvent(new CustomEvent('intro:complete'));
+  }
+}, 9000);
+</script>
+
+</body>
+</html>
