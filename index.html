@@ -51,22 +51,115 @@
     position: absolute;
     inset: 0;
     display: flex;
-    align-items: center;
-    justify-content: center;
+    flex-direction: column;
     opacity: 0;
-    transform: scale(1.08);
+    transform: scale(1.04);
     will-change: opacity, transform;
-    pointer-events: none;
   }
-  #scene-a4 img {
-    max-width: 92%;
-    max-height: 92%;
-    width: auto;
-    height: auto;
-    object-fit: contain;
+  #scene-a4 video,
+  #scene-a4 #fallback-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
     user-select: none;
     -webkit-user-drag: none;
-    border-radius: 8px;
+    display: block;
+  }
+  #video-wrap {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  /* top bar — only on mobile, fills the black zone above the video */
+  #top-bar {
+    display: none;
+    padding: 28px 28px 18px;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 700ms ease-out;
+    pointer-events: none;
+  }
+  #top-bar.show { opacity: 1; }
+  #top-bar .top-logo {
+    height: 40px;
+    width: auto;
+    display: block;
+  }
+  #top-bar .logo-uz {
+    height: 32px;
+  }
+  /* start button area */
+  #start-area {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    padding: 20px 24px 36px;
+    pointer-events: none;
+  }
+  #start-btn {
+    opacity: 0;
+    transform: translateY(24px);
+    background: #FF6B35;
+    color: #fff;
+    border: none;
+    border-radius: 999px;
+    padding: 18px 56px;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    font-family: system-ui, -apple-system, sans-serif;
+    cursor: pointer;
+    pointer-events: none;
+    box-shadow: 0 8px 28px rgba(255, 107, 53, 0.4), 0 0 0 0 rgba(255, 107, 53, 0.5);
+    transition: opacity 700ms ease-out, transform 700ms cubic-bezier(0.16, 1, 0.3, 1),
+                background 0.2s, box-shadow 0.3s;
+  }
+  #start-btn.show {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+    animation: pulse 2.4s ease-in-out 1.4s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 8px 28px rgba(255, 107, 53, 0.4), 0 0 0 0 rgba(255, 107, 53, 0.5); }
+    50% { box-shadow: 0 8px 28px rgba(255, 107, 53, 0.5), 0 0 0 16px rgba(255, 107, 53, 0); }
+  }
+  #start-btn:hover {
+    background: #FF8052;
+  }
+  #start-btn:active {
+    transform: translateY(2px) scale(0.98);
+  }
+  /* video element switching */
+  #video-desktop { display: block; }
+  #video-mobile { display: none; }
+  #fallback-img { display: none; }
+
+  /* MOBILE / PORTRAIT — show top bar with logos, button under video */
+  @media (max-width: 768px), (orientation: portrait) {
+    #video-desktop { display: none; }
+    #video-mobile { display: block; }
+    #top-bar { display: flex; }
+    #scene-a4 video,
+    #scene-a4 #fallback-img {
+      object-fit: contain;
+    }
+  }
+
+  /* DESKTOP / LANDSCAPE — video fills everything, button overlays at bottom-center */
+  @media (min-width: 769px) and (orientation: landscape) {
+    #start-area {
+      position: absolute;
+      bottom: 40px;
+      left: 0;
+      right: 0;
+      padding: 0;
+    }
   }
   .skip {
     position: absolute;
@@ -103,7 +196,22 @@
   </div>
 
   <div id="scene-a4">
-    <img src="A4.png" alt="Step to the Moon">
+    <div id="top-bar">
+      <img src="White_4x.png" alt="School 21" class="top-logo">
+      <img src="uzcosmos_logo_white.png" alt="UZCOSMOS" class="top-logo logo-uz">
+    </div>
+    <div id="video-wrap">
+      <video id="video-desktop" autoplay muted loop playsinline preload="auto" poster="A4.png">
+        <source src="video-desktop.mp4" type="video/mp4">
+      </video>
+      <video id="video-mobile" autoplay muted loop playsinline preload="auto" poster="A4.png">
+        <source src="video-mobile.mp4" type="video/mp4">
+      </video>
+      <img id="fallback-img" src="A4.png" alt="Step to the Moon">
+    </div>
+    <div id="start-area">
+      <button id="start-btn" type="button">START</button>
+    </div>
   </div>
 
   <button class="skip" id="skip">SKIP →</button>
@@ -234,6 +342,16 @@ function showSceneA4() {
   sceneA4.style.transition = `opacity 1800ms ease-out, transform 2400ms cubic-bezier(0.16, 1, 0.3, 1)`;
   sceneA4.style.opacity = '1';
   sceneA4.style.transform = 'scale(1)';
+
+  // top bar (mobile only — hidden via CSS on desktop) appears with the video
+  setTimeout(() => {
+    document.getElementById('top-bar').classList.add('show');
+  }, 600);
+
+  // START button appears a bit later, after the scene has settled
+  setTimeout(() => {
+    document.getElementById('start-btn').classList.add('show');
+  }, 1400);
 }
 
 function tween(from, to, duration, onUpdate) {
@@ -323,11 +441,49 @@ document.getElementById('skip').addEventListener('click', () => {
   window.dispatchEvent(new CustomEvent('intro:skipped'));
 });
 
-// start when all images are loaded (logos + A4)
-const images = document.querySelectorAll('img');
+// ============ VIDEO FALLBACK ============
+// If the right-for-this-device video fails to load (file missing, codec issue),
+// hide both videos and show the static A4 image instead.
+function setupVideoFallback() {
+  const vDesktop = document.getElementById('video-desktop');
+  const vMobile = document.getElementById('video-mobile');
+  const fallback = document.getElementById('fallback-img');
+
+  function activateFallback() {
+    vDesktop.style.display = 'none';
+    vMobile.style.display = 'none';
+    fallback.style.display = 'block';
+  }
+
+  // Detect which video is currently the visible one
+  const isMobile = window.matchMedia('(max-width: 768px), (orientation: portrait)').matches;
+  const activeVideo = isMobile ? vMobile : vDesktop;
+
+  // If after 4 seconds the active video still hasn't started playing, fall back
+  let started = false;
+  activeVideo.addEventListener('playing', () => { started = true; });
+  activeVideo.addEventListener('error', activateFallback);
+  activeVideo.querySelector('source').addEventListener('error', activateFallback);
+
+  setTimeout(() => {
+    if (!started) activateFallback();
+  }, 4000);
+}
+setupVideoFallback();
+
+// ============ START BUTTON ============
+document.getElementById('start-btn').addEventListener('click', () => {
+  // emit an event the parent page / site can listen for
+  window.dispatchEvent(new CustomEvent('intro:start'));
+  // for testing — uncomment to see it works:
+  // alert('START pressed — redirect to registration here');
+});
+
+// start when logo images are loaded (videos load in background, scene fades in regardless)
+const logoImages = document.querySelectorAll('.logo img');
 let loadedCount = 0;
-const totalImages = images.length;
-images.forEach(img => {
+const totalImages = logoImages.length;
+logoImages.forEach(img => {
   if (img.complete) {
     loadedCount++;
     if (loadedCount === totalImages) runIntro();
@@ -343,7 +499,7 @@ images.forEach(img => {
   }
 });
 
-// fire completion event after the full sequence (~9s — when A4 has fully appeared)
+// fire completion event after the full sequence (~9s — when scene has fully appeared)
 setTimeout(() => {
   if (!cancelled) {
     window.dispatchEvent(new CustomEvent('intro:complete'));
