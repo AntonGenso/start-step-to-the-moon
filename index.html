@@ -338,6 +338,12 @@ function hideLogoUz() {
 }
 
 function showSceneA4() {
+  // hide SKIP button — no longer needed once we're at the final scene
+  const skipBtn = document.getElementById('skip');
+  skipBtn.style.transition = 'opacity 500ms ease-out';
+  skipBtn.style.opacity = '0';
+  skipBtn.style.pointerEvents = 'none';
+
   // smooth fade-in with subtle zoom-out — feels like the camera settles on the artwork
   sceneA4.style.transition = `opacity 1800ms ease-out, transform 2400ms cubic-bezier(0.16, 1, 0.3, 1)`;
   sceneA4.style.opacity = '1';
@@ -379,10 +385,8 @@ async function runIntro() {
   await wait(200);
   if (cancelled) return;
 
-  // 0.2 — 2.0s: logo 21 emerges from deep space
+  // 0.2 — 2.0s: logo 21 emerges from deep space (stars keep flying at full warp)
   showLogo21();
-  // gradually slow the warp as logo arrives
-  tween(25, 4, 1600, v => warpSpeed = v);
   await wait(1800);
   if (cancelled) return;
 
@@ -390,16 +394,13 @@ async function runIntro() {
   await wait(800);
   if (cancelled) return;
 
-  // 2.8 — 3.7s: logo 21 flies past camera
+  // 2.8 — 3.7s: logo 21 flies past camera (stars stay at warp)
   hideLogo21();
-  // brief warp surge as we "fly past"
-  tween(4, 12, 400, v => warpSpeed = v);
   await wait(500);
   if (cancelled) return;
 
-  // 3.3 — 5.1s: UZCOSMOS emerges
+  // 3.3 — 5.1s: UZCOSMOS emerges (stars still at warp)
   showLogoUz();
-  tween(12, 4, 1600, v => warpSpeed = v);
   await wait(1800);
   if (cancelled) return;
 
@@ -413,8 +414,8 @@ async function runIntro() {
   logoUz.style.filter = 'blur(12px)';
   logoUz.style.transform = 'translate(-50%, -50%) scale(1.15)';
 
-  // calm the starfield down — the scene is about to settle on the artwork
-  tween(4, 0.8, 1400, v => warpSpeed = v);
+  // calm the starfield down — the scene is about to settle on the video
+  tween(25, 0.8, 1400, v => warpSpeed = v);
   await wait(900);
   if (cancelled) return;
 
@@ -442,32 +443,50 @@ document.getElementById('skip').addEventListener('click', () => {
 });
 
 // ============ VIDEO FALLBACK ============
-// If the right-for-this-device video fails to load (file missing, codec issue),
-// hide both videos and show the static A4 image instead.
+// Fallback to A4.png ONLY if the active video errors out (file missing, codec issue).
+// No timeout — large videos on slow connections must be allowed to load fully.
 function setupVideoFallback() {
   const vDesktop = document.getElementById('video-desktop');
   const vMobile = document.getElementById('video-mobile');
   const fallback = document.getElementById('fallback-img');
 
-  function activateFallback() {
+  // Detect which video is the visible one for this device
+  const isMobile = window.matchMedia('(max-width: 768px), (orientation: portrait)').matches;
+  const activeVideo = isMobile ? vMobile : vDesktop;
+  const inactiveVideo = isMobile ? vDesktop : vMobile;
+
+  // Stop the inactive video from loading at all — saves bandwidth and avoids race conditions
+  inactiveVideo.removeAttribute('autoplay');
+  inactiveVideo.pause();
+  // Clear its source so the browser doesn't fetch it
+  const inactiveSource = inactiveVideo.querySelector('source');
+  if (inactiveSource) inactiveSource.removeAttribute('src');
+  inactiveVideo.load();
+
+  function activateFallback(reason) {
+    console.warn('[intro] Falling back to image. Reason:', reason);
     vDesktop.style.display = 'none';
     vMobile.style.display = 'none';
     fallback.style.display = 'block';
   }
 
-  // Detect which video is currently the visible one
-  const isMobile = window.matchMedia('(max-width: 768px), (orientation: portrait)').matches;
-  const activeVideo = isMobile ? vMobile : vDesktop;
+  // Log helpful diagnostics so you can see in DevTools what's happening
+  activeVideo.addEventListener('loadeddata', () => console.log('[intro] Video data loaded'));
+  activeVideo.addEventListener('canplay', () => console.log('[intro] Video can play'));
+  activeVideo.addEventListener('playing', () => console.log('[intro] Video is playing'));
 
-  // If after 4 seconds the active video still hasn't started playing, fall back
-  let started = false;
-  activeVideo.addEventListener('playing', () => { started = true; });
-  activeVideo.addEventListener('error', activateFallback);
-  activeVideo.querySelector('source').addEventListener('error', activateFallback);
+  // Fallback only fires on a real error (file missing, bad codec, network failure)
+  activeVideo.addEventListener('error', () => activateFallback('video element error'));
+  const activeSource = activeVideo.querySelector('source');
+  if (activeSource) {
+    activeSource.addEventListener('error', () => activateFallback('source error — file not found?'));
+  }
 
-  setTimeout(() => {
-    if (!started) activateFallback();
-  }, 4000);
+  // Some browsers block autoplay even with muted — try programmatic play as a safety net
+  activeVideo.play().catch(err => {
+    console.warn('[intro] Autoplay was blocked:', err);
+    // Don't fall back here — the poster image will show until user interacts
+  });
 }
 setupVideoFallback();
 
