@@ -193,7 +193,9 @@
     #video-mobile { display: block; }
     #top-bar { display: flex; }
     #scene-a4 video {
-      object-fit: contain;
+      /* cover instead of contain — video fills the full middle zone,
+         slightly cropping at the left/right edges instead of leaving black bars. */
+      object-fit: cover;
     }
   }
 
