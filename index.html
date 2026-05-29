@@ -52,24 +52,22 @@
     inset: 0;
     display: flex;
     flex-direction: column;
-    /* visible from the start so iOS Safari starts loading video immediately,
-       but hidden behind a cover overlay until the intro reaches this scene */
     opacity: 1;
     transform: scale(1);
     will-change: transform;
+    z-index: 1;
   }
-  /* black cover that hides scene-a4 during the logo intro, then fades away */
-  #scene-cover {
+  /* Intro overlay — wraps stars + central logos. Sits ABOVE scene-a4 and fades out
+     when the intro is done, revealing the video that's been loading underneath. */
+  #intro-overlay {
     position: absolute;
     inset: 0;
-    background: #000;
-    opacity: 1;
+    z-index: 10;
     pointer-events: none;
-    z-index: 50;
-    will-change: opacity;
     transition: opacity 1800ms ease-out;
+    will-change: opacity;
   }
-  #scene-cover.fade { opacity: 0; }
+  #intro-overlay.fade { opacity: 0; }
   /* video element switching */
   #video-desktop { display: block; width: 100%; height: 100%; }
   #video-mobile { display: none; width: 100%; height: 100%; }
@@ -272,14 +270,16 @@
 <body>
 
 <div class="stage">
-  <canvas id="stars"></canvas>
+  <div id="intro-overlay">
+    <canvas id="stars"></canvas>
 
-  <div class="logo" id="logo-21">
-    <img src="White_4x.png" alt="School 21">
-  </div>
+    <div class="logo" id="logo-21">
+      <img src="White_4x.png" alt="School 21">
+    </div>
 
-  <div class="logo" id="logo-uz">
-    <img src="uzcosmos_logo_white.png" alt="UZCOSMOS">
+    <div class="logo" id="logo-uz">
+      <img src="uzcosmos_logo_white.png" alt="UZCOSMOS">
+    </div>
   </div>
 
   <div id="scene-a4">
@@ -301,8 +301,6 @@
       <button id="start-btn" type="button">START</button>
     </div>
   </div>
-
-  <div id="scene-cover"></div>
 
   <button class="skip" id="skip">SKIP →</button>
 
@@ -455,10 +453,10 @@ function showSceneA4() {
     skipBtn.style.display = 'none';
   }, 550);
 
-  // Fade out the black cover that hides scene-a4 — this reveals the video.
-  // The video has already been loading and playing in the background since page load.
-  const cover = document.getElementById('scene-cover');
-  cover.classList.add('fade');
+  // Fade out the intro overlay (stars + central logos) — this reveals the video
+  // that's been loading and playing underneath since page load.
+  const introOverlay = document.getElementById('intro-overlay');
+  introOverlay.classList.add('fade');
 
   // Ensure video is playing now that scene is visible
   if (!videoFailed) {
