@@ -180,6 +180,45 @@
     background: rgba(255,255,255,0.12);
     color: #fff;
   }
+  /* sound toggle — small icon in the corner, always visible */
+  .sound-btn {
+    position: absolute;
+    bottom: 24px;
+    left: 24px;
+    z-index: 100;
+    width: 42px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.18);
+    color: rgba(255,255,255,0.7);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
+  }
+  .sound-btn:hover {
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+  }
+  .sound-btn svg {
+    width: 20px;
+    height: 20px;
+    display: block;
+  }
+  /* pulse hint when sound is blocked by browser — gently asks user to click */
+  .sound-btn.needs-click {
+    animation: soundPulse 1.8s ease-in-out infinite;
+    background: rgba(255, 107, 53, 0.15);
+    border-color: rgba(255, 107, 53, 0.5);
+    color: #FF6B35;
+  }
+  @keyframes soundPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 107, 53, 0.5); }
+    50% { box-shadow: 0 0 0 10px rgba(255, 107, 53, 0); }
+  }
 </style>
 </head>
 <body>
@@ -215,6 +254,23 @@
   </div>
 
   <button class="skip" id="skip">SKIP →</button>
+
+  <button class="sound-btn needs-click" id="sound-btn" type="button" aria-label="Toggle sound">
+    <svg id="icon-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+      <line x1="23" y1="9" x2="17" y2="15"/>
+      <line x1="17" y1="9" x2="23" y2="15"/>
+    </svg>
+    <svg id="icon-sound" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+    </svg>
+  </button>
+
+  <audio id="bg-music" loop preload="auto">
+    <source src="https://cdn.jsdelivr.net/gh/AntonGenso/start-step-to-the-moon@main/STTM.mp3" type="audio/mpeg">
+  </audio>
 </div>
 
 <script>
@@ -494,6 +550,107 @@ function setupVideoFallback() {
   });
 }
 setupVideoFallback();
+
+// ============ BACKGROUND MUSIC ============
+const audio = document.getElementById('bg-music');
+const soundBtn = document.getElementById('sound-btn');
+const iconMuted = document.getElementById('icon-muted');
+const iconSound = document.getElementById('icon-sound');
+const TARGET_VOLUME = 0.55; // tweak this if music feels too loud / quiet
+audio.volume = 0;
+
+let musicStarted = false;
+let userMuted = false;
+
+function fadeInMusic(duration = 1500) {
+  const start = performance.now();
+  function step(now) {
+    const t = Math.min(1, (now - start) / duration);
+    audio.volume = TARGET_VOLUME * t;
+    if (t < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+function fadeOutMusic(duration = 600) {
+  const start = performance.now();
+  const startVol = audio.volume;
+  function step(now) {
+    const t = Math.min(1, (now - start) / duration);
+    audio.volume = startVol * (1 - t);
+    if (t < 1) requestAnimationFrame(step);
+    else audio.pause();
+  }
+  requestAnimationFrame(step);
+}
+
+function setSoundIcon(on) {
+  if (on) {
+    iconMuted.style.display = 'none';
+    iconSound.style.display = 'block';
+    soundBtn.classList.remove('needs-click');
+  } else {
+    iconMuted.style.display = 'block';
+    iconSound.style.display = 'none';
+  }
+}
+
+function tryStartMusic() {
+  if (musicStarted || userMuted) return;
+  const p = audio.play();
+  if (p !== undefined) {
+    p.then(() => {
+      musicStarted = true;
+      fadeInMusic();
+      setSoundIcon(true);
+      console.log('[intro] Music started');
+    }).catch(err => {
+      // Autoplay blocked — wait for user gesture
+      console.log('[intro] Autoplay blocked, waiting for user interaction');
+    });
+  }
+}
+
+// Attempt 1: try immediately on load
+tryStartMusic();
+
+// Attempt 2: first user interaction anywhere starts music
+function onFirstInteraction() {
+  tryStartMusic();
+  if (musicStarted) {
+    document.removeEventListener('click', onFirstInteraction);
+    document.removeEventListener('touchstart', onFirstInteraction);
+    document.removeEventListener('keydown', onFirstInteraction);
+  }
+}
+document.addEventListener('click', onFirstInteraction);
+document.addEventListener('touchstart', onFirstInteraction);
+document.addEventListener('keydown', onFirstInteraction);
+
+// Manual toggle via sound button
+soundBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (!musicStarted) {
+    tryStartMusic();
+    return;
+  }
+  if (audio.paused || userMuted) {
+    userMuted = false;
+    audio.play();
+    fadeInMusic(400);
+    setSoundIcon(true);
+  } else {
+    userMuted = true;
+    fadeOutMusic(400);
+    setSoundIcon(false);
+  }
+});
+
+// Audio error fallback — if music file can't load, just hide the button silently
+audio.addEventListener('error', () => {
+  console.warn('[intro] Music file failed to load');
+  soundBtn.style.display = 'none';
+});
 
 // ============ START BUTTON ============
 document.getElementById('start-btn').addEventListener('click', () => {
