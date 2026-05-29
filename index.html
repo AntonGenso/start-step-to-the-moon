@@ -52,19 +52,32 @@
     inset: 0;
     display: flex;
     flex-direction: column;
-    opacity: 0;
-    transform: scale(1.04);
-    will-change: opacity, transform;
+    /* visible from the start so iOS Safari starts loading video immediately,
+       but hidden behind a cover overlay until the intro reaches this scene */
+    opacity: 1;
+    transform: scale(1);
+    will-change: transform;
   }
-  #scene-a4 video,
-  #scene-a4 #fallback-img {
-    width: 100%;
-    height: 100%;
+  /* black cover that hides scene-a4 during the logo intro, then fades away */
+  #scene-cover {
+    position: absolute;
+    inset: 0;
+    background: #000;
+    opacity: 1;
+    pointer-events: none;
+    z-index: 50;
+    will-change: opacity;
+    transition: opacity 1800ms ease-out;
+  }
+  #scene-cover.fade { opacity: 0; }
+  /* video element switching */
+  #video-desktop { display: block; width: 100%; height: 100%; }
+  #video-mobile { display: none; width: 100%; height: 100%; }
+  #scene-a4 video {
     object-fit: cover;
     object-position: center;
     user-select: none;
     -webkit-user-drag: none;
-    display: block;
   }
   #video-wrap {
     position: relative;
@@ -135,18 +148,53 @@
   #start-btn:active {
     transform: translateY(2px) scale(0.98);
   }
-  /* video element switching */
-  #video-desktop { display: block; }
-  #video-mobile { display: none; }
-  #fallback-img { display: none; }
+  /* Self-contained fallback — shown only if video fails to load. No external image needed. */
+  #video-fallback {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(ellipse at center, #0a0e1f 0%, #02040a 70%, #000 100%);
+    color: #fff;
+    font-family: 'Trebuchet MS', system-ui, -apple-system, sans-serif;
+    font-size: clamp(28px, 6vw, 56px);
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-align: center;
+    padding: 20px;
+    line-height: 1.1;
+  }
+  #video-fallback.show { display: flex; }
+  /* Loading spinner shown while video downloads */
+  #video-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 5;
+  }
+  #video-loading.hide { display: none; }
+  #video-loading .spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid rgba(255,255,255,0.15);
+    border-top-color: rgba(255,255,255,0.7);
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
 
   /* MOBILE / PORTRAIT — show top bar with logos, button under video */
   @media (max-width: 768px), (orientation: portrait) {
     #video-desktop { display: none; }
     #video-mobile { display: block; }
     #top-bar { display: flex; }
-    #scene-a4 video,
-    #scene-a4 #fallback-img {
+    #scene-a4 video {
       object-fit: contain;
     }
   }
@@ -240,18 +288,21 @@
       <img src="uzcosmos_logo_white.png" alt="UZCOSMOS" class="top-logo logo-uz">
     </div>
     <div id="video-wrap">
-      <video id="video-desktop" autoplay muted loop playsinline webkit-playsinline preload="auto" poster="A4.png">
+      <video id="video-desktop" autoplay muted loop playsinline webkit-playsinline preload="auto">
         <source src="https://cdn.jsdelivr.net/gh/AntonGenso/start-step-to-the-moon@main/video-desktop.mp4" type="video/mp4">
       </video>
-      <video id="video-mobile" autoplay muted loop playsinline webkit-playsinline preload="auto" poster="A4.png">
+      <video id="video-mobile" autoplay muted loop playsinline webkit-playsinline preload="auto">
         <source src="https://cdn.jsdelivr.net/gh/AntonGenso/start-step-to-the-moon@main/video-mobile.mp4" type="video/mp4">
       </video>
-      <img id="fallback-img" src="A4.png" alt="Step to the Moon">
+      <div id="video-loading"><div class="spinner"></div></div>
+      <div id="video-fallback">Step<br>to the moon</div>
     </div>
     <div id="start-area">
       <button id="start-btn" type="button">START</button>
     </div>
   </div>
+
+  <div id="scene-cover"></div>
 
   <button class="skip" id="skip">SKIP →</button>
 
@@ -399,16 +450,20 @@ function showSceneA4() {
   skipBtn.style.transition = 'opacity 500ms ease-out';
   skipBtn.style.opacity = '0';
   skipBtn.style.pointerEvents = 'none';
-  // hard-hide after fade so it's gone for sure (CSS hover etc. can't bring it back)
   setTimeout(() => {
     skipBtn.style.visibility = 'hidden';
     skipBtn.style.display = 'none';
   }, 550);
 
-  // smooth fade-in with subtle zoom-out — feels like the camera settles on the artwork
-  sceneA4.style.transition = `opacity 1800ms ease-out, transform 2400ms cubic-bezier(0.16, 1, 0.3, 1)`;
-  sceneA4.style.opacity = '1';
-  sceneA4.style.transform = 'scale(1)';
+  // Fade out the black cover that hides scene-a4 — this reveals the video.
+  // The video has already been loading and playing in the background since page load.
+  const cover = document.getElementById('scene-cover');
+  cover.classList.add('fade');
+
+  // Ensure video is playing now that scene is visible
+  if (!videoFailed) {
+    tryPlayVideo();
+  }
 
   // top bar (mobile only — hidden via CSS on desktop) appears with the video
   setTimeout(() => {
@@ -503,53 +558,93 @@ document.getElementById('skip').addEventListener('click', () => {
   window.dispatchEvent(new CustomEvent('intro:skipped'));
 });
 
-// ============ VIDEO FALLBACK ============
-// Fallback to A4.png ONLY if the active video errors out (file missing, codec issue).
-// No timeout — large videos on slow connections must be allowed to load fully.
-function setupVideoFallback() {
-  const vDesktop = document.getElementById('video-desktop');
-  const vMobile = document.getElementById('video-mobile');
-  const fallback = document.getElementById('fallback-img');
+// ============ VIDEO SETUP ============
+// Strategy:
+// 1. Both video elements exist in the DOM but only the active one (per device) loads.
+// 2. We explicitly call .load() and .play() to nudge iOS Safari, which sometimes
+//    won't start downloading video that lives inside an opacity:0 / hidden parent.
+// 3. If play() is blocked by browser policy, we retry on first user interaction.
+// 4. Fallback is self-contained (CSS text on dark bg) — no external image needed.
 
-  // Detect which video is the visible one for this device
-  const isMobile = window.matchMedia('(max-width: 768px), (orientation: portrait)').matches;
-  const activeVideo = isMobile ? vMobile : vDesktop;
-  const inactiveVideo = isMobile ? vDesktop : vMobile;
+const vDesktop = document.getElementById('video-desktop');
+const vMobile = document.getElementById('video-mobile');
+const videoLoading = document.getElementById('video-loading');
+const videoFallback = document.getElementById('video-fallback');
 
-  // Stop the inactive video from loading at all — saves bandwidth and avoids race conditions
-  inactiveVideo.removeAttribute('autoplay');
-  inactiveVideo.pause();
-  // Clear its source so the browser doesn't fetch it
-  const inactiveSource = inactiveVideo.querySelector('source');
-  if (inactiveSource) inactiveSource.removeAttribute('src');
-  inactiveVideo.load();
+const isMobileDevice = window.matchMedia('(max-width: 768px), (orientation: portrait)').matches;
+const activeVideo = isMobileDevice ? vMobile : vDesktop;
+const inactiveVideo = isMobileDevice ? vDesktop : vMobile;
 
-  function activateFallback(reason) {
-    console.warn('[intro] Falling back to image. Reason:', reason);
-    vDesktop.style.display = 'none';
-    vMobile.style.display = 'none';
-    fallback.style.display = 'block';
-  }
+console.log('[intro] Device detected:', isMobileDevice ? 'MOBILE' : 'DESKTOP');
+console.log('[intro] Active video source:', activeVideo.querySelector('source').src);
 
-  // Log helpful diagnostics so you can see in DevTools what's happening
-  activeVideo.addEventListener('loadeddata', () => console.log('[intro] Video data loaded'));
-  activeVideo.addEventListener('canplay', () => console.log('[intro] Video can play'));
-  activeVideo.addEventListener('playing', () => console.log('[intro] Video is playing'));
+// Disable the inactive video so it doesn't waste bandwidth
+inactiveVideo.removeAttribute('autoplay');
+inactiveVideo.pause();
+const inactiveSource = inactiveVideo.querySelector('source');
+if (inactiveSource) inactiveSource.removeAttribute('src');
+try { inactiveVideo.load(); } catch (e) {}
 
-  // Fallback only fires on a real error (file missing, bad codec, network failure)
-  activeVideo.addEventListener('error', () => activateFallback('video element error'));
-  const activeSource = activeVideo.querySelector('source');
-  if (activeSource) {
-    activeSource.addEventListener('error', () => activateFallback('source error — file not found?'));
-  }
+let videoStarted = false;
+let videoFailed = false;
 
-  // Some browsers block autoplay even with muted — try programmatic play as a safety net
-  activeVideo.play().catch(err => {
-    console.warn('[intro] Autoplay was blocked:', err);
-    // Don't fall back here — the poster image will show until user interacts
-  });
+function showVideoFallback(reason) {
+  if (videoStarted || videoFailed) return;
+  videoFailed = true;
+  console.warn('[intro] Video fallback activated. Reason:', reason);
+  vDesktop.style.display = 'none';
+  vMobile.style.display = 'none';
+  videoLoading.classList.add('hide');
+  videoFallback.classList.add('show');
 }
-setupVideoFallback();
+
+// Diagnostic listeners — you'll see these in DevTools Console
+activeVideo.addEventListener('loadstart', () => console.log('[intro] Video loadstart'));
+activeVideo.addEventListener('loadedmetadata', () => console.log('[intro] Video metadata loaded'));
+activeVideo.addEventListener('loadeddata', () => console.log('[intro] Video first frame loaded'));
+activeVideo.addEventListener('canplay', () => console.log('[intro] Video can start playing'));
+activeVideo.addEventListener('canplaythrough', () => console.log('[intro] Video can play through'));
+activeVideo.addEventListener('playing', () => {
+  console.log('[intro] Video is playing');
+  videoStarted = true;
+  videoLoading.classList.add('hide');
+});
+activeVideo.addEventListener('waiting', () => console.log('[intro] Video buffering'));
+activeVideo.addEventListener('stalled', () => console.warn('[intro] Video stalled (network slow?)'));
+
+// Real error → activate fallback
+activeVideo.addEventListener('error', (e) => {
+  const err = activeVideo.error;
+  showVideoFallback(`video error code ${err ? err.code : '?'} — ${err ? err.message : 'unknown'}`);
+});
+const activeSource = activeVideo.querySelector('source');
+if (activeSource) {
+  activeSource.addEventListener('error', () => showVideoFallback('source not loadable (404? wrong codec?)'));
+}
+
+// Explicitly trigger load — helps iOS Safari which is lazy about hidden video
+try {
+  activeVideo.load();
+} catch (e) {
+  console.warn('[intro] video.load() threw:', e);
+}
+
+// Try to play immediately (will work on desktop muted-autoplay, may fail on iOS)
+function tryPlayVideo() {
+  const p = activeVideo.play();
+  if (p !== undefined) {
+    p.then(() => console.log('[intro] Video play() succeeded'))
+     .catch(err => console.log('[intro] Video play() blocked — will retry on user gesture:', err.message));
+  }
+}
+tryPlayVideo();
+
+// Hide spinner after a max wait — if video isn't playing by then, fallback already showed
+setTimeout(() => {
+  if (!videoStarted && !videoFailed) {
+    console.log('[intro] Video taking a while — keeping spinner');
+  }
+}, 6000);
 
 // ============ BACKGROUND MUSIC ============
 const audio = document.getElementById('bg-music');
@@ -614,9 +709,13 @@ function tryStartMusic() {
 // Attempt 1: try immediately on load
 tryStartMusic();
 
-// Attempt 2: first user interaction anywhere starts music
+// Attempt 2: first user interaction anywhere starts music + retries video
 function onFirstInteraction() {
   tryStartMusic();
+  // also retry video play in case browser blocked autoplay on mobile
+  if (!videoStarted && !videoFailed) {
+    tryPlayVideo();
+  }
   if (musicStarted) {
     document.removeEventListener('click', onFirstInteraction);
     document.removeEventListener('touchstart', onFirstInteraction);
