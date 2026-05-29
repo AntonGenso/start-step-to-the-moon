@@ -75,7 +75,7 @@
   /* top bar — only on mobile, fills the black zone above the video */
   #top-bar {
     display: none;
-    padding: 28px 28px 18px;
+    padding: 32px 32px 20px;
     align-items: center;
     justify-content: space-between;
     flex-shrink: 0;
@@ -85,12 +85,12 @@
   }
   #top-bar.show { opacity: 1; }
   #top-bar .top-logo {
-    height: 40px;
+    height: 70px;
     width: auto;
     display: block;
   }
   #top-bar .logo-uz {
-    height: 32px;
+    height: 56px;
   }
   /* start button area */
   #start-area {
@@ -201,11 +201,11 @@
       <img src="uzcosmos_logo_white.png" alt="UZCOSMOS" class="top-logo logo-uz">
     </div>
     <div id="video-wrap">
-      <video id="video-desktop" autoplay muted loop playsinline preload="auto" poster="A4.png">
-        <source src="video-desktop.mp4" type="video/mp4">
+      <video id="video-desktop" autoplay muted loop playsinline webkit-playsinline preload="auto" poster="A4.png">
+        <source src="https://cdn.jsdelivr.net/gh/AntonGenso/start-step-to-the-moon@main/video-desktop.mp4" type="video/mp4">
       </video>
-      <video id="video-mobile" autoplay muted loop playsinline preload="auto" poster="A4.png">
-        <source src="video-mobile.mp4" type="video/mp4">
+      <video id="video-mobile" autoplay muted loop playsinline webkit-playsinline preload="auto" poster="A4.png">
+        <source src="https://cdn.jsdelivr.net/gh/AntonGenso/start-step-to-the-moon@main/video-mobile.mp4" type="video/mp4">
       </video>
       <img id="fallback-img" src="A4.png" alt="Step to the Moon">
     </div>
@@ -343,6 +343,11 @@ function showSceneA4() {
   skipBtn.style.transition = 'opacity 500ms ease-out';
   skipBtn.style.opacity = '0';
   skipBtn.style.pointerEvents = 'none';
+  // hard-hide after fade so it's gone for sure (CSS hover etc. can't bring it back)
+  setTimeout(() => {
+    skipBtn.style.visibility = 'hidden';
+    skipBtn.style.display = 'none';
+  }, 550);
 
   // smooth fade-in with subtle zoom-out — feels like the camera settles on the artwork
   sceneA4.style.transition = `opacity 1800ms ease-out, transform 2400ms cubic-bezier(0.16, 1, 0.3, 1)`;
